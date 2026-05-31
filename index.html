@@ -80,7 +80,25 @@
     background: var(--primary); border: 4px solid #fff; box-shadow: 0 2px 8px rgba(240,111,28,.4); cursor: pointer;
   }
   .scale { display: flex; justify-content: space-between; font-size: 11px; color: var(--muted); margin-top: 6px; }
-  .ex-hint { font-size: 11px; color: var(--muted); line-height: 1.5; margin-top: 8px; }
+  .info-btn {
+    width: 16px; height: 16px; padding: 0; border: none; border-radius: 50%;
+    background: var(--line); color: var(--muted); font-size: 11px; font-weight: 700;
+    font-style: italic; font-family: Georgia, serif; line-height: 16px; cursor: pointer; flex: none;
+  }
+  .info-btn:hover { background: #e7dccf; }
+  .info-wrap { position: relative; display: inline-flex; }
+  .ex-hint {
+    position: absolute; top: calc(100% + 9px); left: -6px; z-index: 30; width: 220px;
+    font-size: 11.5px; font-weight: 400; color: var(--text); line-height: 1.55; text-align: left;
+    background: #fff; border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px;
+    box-shadow: 0 8px 24px rgba(40,28,18,.16);
+  }
+  .ex-hint::before {
+    content: ""; position: absolute; top: -6px; left: 9px; width: 11px; height: 11px;
+    background: #fff; border-left: 1px solid var(--line); border-top: 1px solid var(--line);
+    transform: rotate(45deg);
+  }
+  .ex-hint[hidden] { display: none; }
   /* 非活跃阶段：运动量不参与系数，弱化并禁用滑块 */
   .crow.muted .ex-inline,
   .crow.muted input[type=range],
@@ -231,10 +249,15 @@
       </select>
     </div>
     <div class="crow" id="exRow">
-      <div class="label sm">🏃 每日运动量 <span class="ex-inline"><b id="exNum">2</b> 小时<span class="tag" id="exTag">适中</span></span></div>
+      <div class="label sm">🏃 每日运动量
+        <span class="info-wrap">
+          <button class="info-btn" id="exInfoBtn" type="button" aria-label="说明">i</button>
+          <span class="ex-hint" id="exHint" hidden>仅「活跃 / 工作犬」按运动量调节系数；其他阶段活动量已含在系数中。</span>
+        </span>
+        <span class="ex-inline"><b id="exNum">2</b> 小时<span class="tag" id="exTag">适中</span></span>
+      </div>
       <input id="exercise" type="range" min="1" max="10" step="1" value="2">
       <div class="scale"><span>1h 偏静</span><span>5h</span><span>10h 高活跃</span></div>
-      <div class="ex-hint" id="exHint">仅「活跃 / 工作犬」按运动量调节系数；其他阶段活动量已含在系数中。</div>
     </div>
   </div>
 
@@ -435,6 +458,7 @@
     if (bad) {
       ['mer','dailyG','perMealG','rer','merD'].forEach(i => $(i).textContent = '0');
       $('freshKc').textContent = $('kibbleKc').textContent = '0 kcal';
+      save();
       return;
     }
 
@@ -493,6 +517,44 @@
     if (lockedFood !== 'kibble') kibbleGEl.value = kibbleGMeal;
     $('freshKc').textContent  = r0(freshKcalMeal) + ' kcal';
     $('kibbleKc').textContent = r0(kibbleKcalMeal) + ' kcal';
+    save();
+  }
+
+  // 记住设置：保存 / 恢复
+  const LS_KEY = 'dogfood_calc_v1';
+  function save() {
+    const data = {
+      weight: weightEl.value,
+      stageIdx: stageEl.selectedIndex,
+      exercise: exEl.value,
+      mode,
+      freshKcal: freshKcalEl.value,
+      kibbleKcal: kibbleKcalEl.value,
+      lockedFood,
+      lockedGram: lockedFood === 'fresh' ? freshGEl.value
+                : lockedFood === 'kibble' ? kibbleGEl.value : null,
+    };
+    try { localStorage.setItem(LS_KEY, JSON.stringify(data)); } catch (e) {}
+  }
+  function load() {
+    let data;
+    try { data = JSON.parse(localStorage.getItem(LS_KEY)); } catch (e) {}
+    if (!data) return;
+    if (data.weight != null && data.weight !== '') weightEl.value = data.weight;
+    if (data.stageIdx != null && stageEl.options[data.stageIdx]) stageEl.selectedIndex = data.stageIdx;
+    if (data.exercise != null) exEl.value = data.exercise;
+    if (data.freshKcal != null && data.freshKcal !== '') freshKcalEl.value = data.freshKcal;
+    if (data.kibbleKcal != null && data.kibbleKcal !== '') kibbleKcalEl.value = data.kibbleKcal;
+    if (data.mode) {
+      mode = data.mode;
+      document.querySelectorAll('#mode button').forEach(x => x.classList.toggle('active', x.dataset.m === mode));
+    }
+    if (data.lockedFood && mode === 'combo') {
+      lockedFood = data.lockedFood;
+      if (data.lockedGram != null && data.lockedGram !== '') {
+        (lockedFood === 'fresh' ? freshGEl : kibbleGEl).value = data.lockedGram;
+      }
+    }
   }
 
   [weightEl, stageEl, exEl, freshKcalEl, kibbleKcalEl].forEach(el => {
@@ -505,6 +567,13 @@
       document.querySelectorAll('#mode button').forEach(x => x.classList.toggle('active', x === b));
       calc();
     }));
+
+  // 运动量说明：点 ⓘ 弹出气泡，点别处或再点一次收起
+  $('exInfoBtn').addEventListener('click', e => {
+    e.stopPropagation();
+    $('exHint').hidden = !$('exHint').hidden;
+  });
+  document.addEventListener('click', () => { $('exHint').hidden = true; });
 
   // 编辑某项克数 → 自动锁定该项（组合模式），另一项补足
   freshGEl.addEventListener('input', () => {
@@ -536,6 +605,7 @@
     freshKcalEl.value = 130; kibbleKcalEl.value = 350; calc();
   });
 
+  load();   // 恢复上次设置
   calc();
 </script>
 </body>
