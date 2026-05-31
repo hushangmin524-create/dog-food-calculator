@@ -1,0 +1,542 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="theme-color" content="#ff8a3d">
+<title>🐶 狗狗科学喂食计算器</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  :root {
+    --bg: #fff7f0;
+    --card: #ffffff;
+    --primary: #ff8a3d;
+    --primary-dark: #f06f1c;
+    --text: #3a3330;
+    --muted: #9b9088;
+    --line: #f0e6dc;
+  }
+  html, body { height: 100%; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Helvetica Neue", sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+    padding: 10px 14px calc(20px + env(safe-area-inset-bottom));
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+  }
+  .wrap { width: 100%; max-width: 440px; }
+
+  header { text-align: center; margin-bottom: 10px; }
+  header .emoji { font-size: 30px; line-height: 1; }
+  header h1 { font-size: 18px; margin-top: 4px; font-weight: 700; }
+  header p { color: var(--muted); font-size: 12px; margin-top: 2px; }
+
+  .card {
+    background: var(--card);
+    border-radius: 18px;
+    padding: 14px 16px;
+    box-shadow: 0 4px 16px rgba(240, 111, 28, 0.07);
+    margin-bottom: 10px;
+  }
+
+  .label { font-size: 14px; font-weight: 600; margin-bottom: 10px; display: flex; align-items: center; gap: 6px; }
+  .label .hint { font-weight: 400; color: var(--muted); font-size: 12px; margin-left: auto; }
+
+  /* 体重输入 */
+  .weight-row { display: flex; align-items: center; gap: 10px; }
+  .weight-row input {
+    flex: 1; width: 100%; font-size: 24px; font-weight: 700;
+    padding: 9px 16px; border: 2px solid var(--line); border-radius: 12px;
+    text-align: center; color: var(--primary-dark); background: #fffdfb; outline: none; transition: border-color .2s;
+  }
+  .weight-row input:focus { border-color: var(--primary); }
+  .weight-row .unit { font-size: 18px; font-weight: 700; color: var(--muted); }
+
+  /* 下拉选择 */
+  select {
+    width: 100%; font-size: 15px; padding: 13px 14px; border: 2px solid var(--line);
+    border-radius: 14px; background: #fffdfb; color: var(--text); outline: none; -webkit-appearance: none;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' fill='none' stroke='%239b9088' stroke-width='2'%3E%3Cpath d='M3 5l4 4 4-4'/%3E%3C/svg%3E");
+    background-repeat: no-repeat; background-position: right 16px center;
+  }
+  select:focus { border-color: var(--primary); }
+
+  /* 紧凑卡：生命阶段 + 运动量 */
+  .crow + .crow { margin-top: 11px; padding-top: 11px; border-top: 1px solid var(--line); }
+  .label.sm { font-size: 13px; margin-bottom: 7px; flex-wrap: wrap; gap: 4px 8px; }
+  .stage-desc { font-weight: 400; color: var(--muted); font-size: 11.5px; }
+  .compact select { font-size: 14px; padding: 10px 14px; border-radius: 12px; }
+
+  .ex-inline { margin-left: auto; display: inline-flex; align-items: center; gap: 6px; font-size: 12px; color: var(--muted); }
+  .ex-inline b { font-size: 18px; color: var(--primary-dark); }
+  .ex-inline .tag { padding: 2px 9px; border-radius: 20px; background: #fff1e6; color: var(--primary-dark); font-weight: 600; }
+
+  input[type=range] { -webkit-appearance: none; width: 100%; height: 6px; border-radius: 8px; background: var(--line); outline: none; margin-top: 4px; }
+  input[type=range]::-webkit-slider-thumb {
+    -webkit-appearance: none; width: 24px; height: 24px; border-radius: 50%;
+    background: var(--primary); border: 4px solid #fff; box-shadow: 0 2px 8px rgba(240,111,28,.4); cursor: pointer;
+  }
+  .scale { display: flex; justify-content: space-between; font-size: 11px; color: var(--muted); margin-top: 6px; }
+  .ex-hint { font-size: 11px; color: var(--muted); line-height: 1.5; margin-top: 8px; }
+  /* 非活跃阶段：运动量不参与系数，弱化并禁用滑块 */
+  .crow.muted .ex-inline,
+  .crow.muted input[type=range],
+  .crow.muted .scale { opacity: .4; }
+  .crow.muted input[type=range] { pointer-events: none; }
+
+  /* 喂食方式分段选择 */
+  .seg { display: flex; background: #faf2ea; border-radius: 14px; padding: 4px; gap: 4px; }
+  .seg button {
+    flex: 1; border: none; background: transparent; padding: 11px 0; border-radius: 11px;
+    font-size: 14px; font-weight: 600; color: var(--muted); cursor: pointer; transition: all .18s;
+  }
+  .seg button.active { background: #fff; color: var(--primary-dark); box-shadow: 0 2px 8px rgba(240,111,28,.18); }
+
+  .fix-warn { display: none; font-size: 12px; line-height: 1.5; background: rgba(255,255,255,.2); border-radius: 12px; padding: 9px 12px; margin-bottom: 12px; }
+  .fix-warn.show { display: block; }
+
+  /* 结果区 */
+  .result { background: linear-gradient(135deg, #ff9d52, #f06f1c); color: #fff; }
+  .result .label { color: #fff; }
+  .total { text-align: center; padding: 2px 0 11px; border-bottom: 1px dashed rgba(255,255,255,.4); margin-bottom: 11px; }
+  .total .kcal { font-size: 14px; opacity: .92; font-weight: 600; margin-bottom: 4px; }
+  .total .big { font-size: 38px; font-weight: 800; }
+  .total .big .s { font-size: 17px; font-weight: 600; opacity: .9; }
+  .total .sub { font-size: 13px; opacity: .9; margin-top: 2px; }
+
+  .meal-title { text-align: center; font-size: 13px; opacity: .92; margin-bottom: 10px; }
+  .meal-title b { font-size: 15px; }
+  .split { display: flex; gap: 12px; }
+  .split .item { position: relative; flex: 1; background: rgba(255,255,255,.18); border: 2px solid transparent; border-radius: 14px; padding: 13px 8px; text-align: center; transition: border-color .15s, background .15s; }
+  .split .item.locked { border-color: rgba(255,255,255,.5); background: rgba(255,255,255,.14); }
+  .split .item .ic { font-size: 22px; }
+  .split .item .name { font-size: 13px; margin: 3px 0 6px; opacity: .95; }
+  .split .item .g { font-size: 23px; font-weight: 800; display: flex; align-items: baseline; justify-content: center; gap: 2px; }
+  .split .item .g input {
+    width: 62px; font-size: 23px; font-weight: 800; text-align: center; color: #fff;
+    background: rgba(255,255,255,.22); border: none; border-radius: 9px; padding: 2px 4px; outline: none;
+    -webkit-appearance: none; -moz-appearance: textfield; font-family: inherit;
+  }
+  .split .item .g input::-webkit-outer-spin-button,
+  .split .item .g input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+  .split .item .g input:focus { background: rgba(255,255,255,.4); }
+  .split .item .g .s { font-size: 12px; font-weight: 600; opacity: .85; }
+  .split .item .kc { font-size: 11px; opacity: .8; margin-top: 3px; }
+
+  /* 锁定按钮 */
+  .lock {
+    position: absolute; top: 6px; right: 6px; width: 26px; height: 26px; padding: 0;
+    display: flex; align-items: center; justify-content: center;
+    border: none; border-radius: 8px; background: rgba(255,255,255,.18); color: #fff;
+    cursor: pointer; transition: background .15s, color .15s;
+  }
+  .lock svg { width: 15px; height: 15px; display: block; }
+  .lock:hover { background: rgba(255,255,255,.32); }
+  .item.locked .lock { background: rgba(255,255,255,.45); color: #fff; }
+
+  /* 明细 */
+  details { margin-bottom: 14px; border-radius: 16px; background: #fff; box-shadow: 0 4px 16px rgba(240,111,28,.06); overflow: hidden; }
+  summary { padding: 14px 18px; font-size: 14px; font-weight: 600; cursor: pointer; list-style: none; display: flex; align-items: center; }
+  summary::-webkit-details-marker { display: none; }
+  summary::after { content: "▾"; margin-left: auto; color: var(--muted); transition: transform .2s; }
+  details[open] summary::after { transform: rotate(180deg); }
+  .calc-rows { padding: 0 18px 16px; }
+  .calc-rows .row { display: flex; justify-content: space-between; font-size: 13px; padding: 7px 0; border-top: 1px solid var(--line); color: var(--muted); }
+  .calc-rows .row b { color: var(--text); font-weight: 700; }
+  .calc-rows .row .f { font-family: ui-monospace, Menlo, monospace; font-size: 12px; }
+
+  .note { font-size: 12px; color: var(--muted); line-height: 1.7; margin-top: 2px; padding: 0 4px; }
+  .note b { color: var(--text); }
+
+  /* 结果卡内的热量设置入口 */
+  .kcal-bar {
+    display: flex; align-items: center; justify-content: center; gap: 8px;
+    margin-top: 14px; padding-top: 12px; border-top: 1px dashed rgba(255,255,255,.4);
+    font-size: 12px; color: #fff; opacity: .92; cursor: pointer;
+  }
+  .kcal-bar .vals { font-weight: 600; }
+  .kcal-bar .edit { margin-left: 2px; padding: 3px 9px; border-radius: 20px; background: rgba(255,255,255,.22); font-weight: 600; }
+
+  /* 弹窗 */
+  .overlay {
+    position: fixed; inset: 0; background: rgba(40,28,18,.5); backdrop-filter: blur(2px);
+    display: flex; align-items: flex-end; justify-content: center; z-index: 50;
+    opacity: 0; pointer-events: none; transition: opacity .22s;
+    padding: 0 0 env(safe-area-inset-bottom);
+  }
+  .overlay.show { opacity: 1; pointer-events: auto; }
+  .sheet {
+    width: 100%; max-width: 440px; background: var(--card);
+    border-radius: 22px 22px 0 0; padding: 8px 20px calc(24px + env(safe-area-inset-bottom));
+    transform: translateY(100%); transition: transform .26s cubic-bezier(.2,.8,.2,1);
+    max-height: 88vh; overflow-y: auto;
+  }
+  .overlay.show .sheet { transform: translateY(0); }
+  .sheet .grab { width: 40px; height: 5px; border-radius: 5px; background: var(--line); margin: 8px auto 14px; }
+  .sheet h2 { font-size: 17px; font-weight: 700; margin-bottom: 4px; }
+  .sheet .lead { font-size: 12px; color: var(--muted); margin-bottom: 18px; line-height: 1.6; }
+
+  .kcal-edit { margin-bottom: 16px; }
+  .kcal-edit.dim { opacity: .45; }
+  .kcal-edit .t { font-size: 14px; font-weight: 600; margin-bottom: 8px; display: flex; align-items: center; gap: 6px; }
+  .kcal-edit .ig { position: relative; }
+  .kcal-edit input {
+    width: 100%; font-size: 20px; font-weight: 700; padding: 12px 60px 12px 14px;
+    border: 2px solid var(--line); border-radius: 12px; color: var(--text); background: #fffdfb; outline: none;
+  }
+  .kcal-edit input:focus { border-color: var(--primary); }
+  .kcal-edit .suf { position: absolute; right: 12px; top: 50%; transform: translateY(-50%); font-size: 12px; color: var(--muted); pointer-events: none; }
+  .kcal-edit .src { font-size: 11.5px; color: var(--muted); line-height: 1.65; margin-top: 8px; background: #faf4ee; border-radius: 10px; padding: 10px 12px; }
+  .kcal-edit .src b { color: var(--text); }
+
+  .sheet .actions { display: flex; gap: 10px; margin-top: 6px; }
+  .sheet .actions button { flex: 1; padding: 13px 0; border: none; border-radius: 13px; font-size: 15px; font-weight: 600; cursor: pointer; }
+  .sheet .actions .reset { background: #f3ece5; color: var(--muted); }
+  .sheet .actions .done { background: var(--primary); color: #fff; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div class="emoji">🐶🍖</div>
+    <h1>狗狗科学喂食计算器</h1>
+    <p>RER → MER 能量法 · 按食物热量换算</p>
+  </header>
+
+  <!-- 体重 -->
+  <div class="card">
+    <div class="label">🐾 狗狗体重 <span class="hint">单位：千克 kg</span></div>
+    <div class="weight-row">
+      <input id="weight" type="number" inputmode="decimal" value="2.5" min="0.5" max="100" step="0.5">
+      <span class="unit">kg</span>
+    </div>
+  </div>
+
+  <!-- 生命阶段 + 运动量（合并紧凑卡） -->
+  <div class="card compact">
+    <div class="crow">
+      <div class="label sm">🐕 生命阶段 <span class="stage-desc" id="stageDesc"></span></div>
+      <select id="stage">
+        <option value="3.0" data-d="快速生长期，能量需求最高">幼犬（0–4 个月）</option>
+        <option value="2.0" data-d="持续发育期" selected>幼犬（4–12 个月）</option>
+        <option value="1.6" data-d="家养绝育犬，日常散步约 1h">绝育成犬（低活动）</option>
+        <option value="1.8" data-d="日常散步 1–2 小时">未绝育成犬（正常活动）</option>
+        <option value="2.5" data-active="1" data-d="搜救/运动犬，系数随运动量在 2.0–5.0 间取值">活跃 / 工作犬</option>
+        <option value="1.1" data-d="减重期，需兽医指导">肥胖犬（减重期）</option>
+        <option value="3.0" data-d="妊娠最后 3–4 周">怀孕后期</option>
+        <option value="5.0" data-d="按幼犬数量在 4–8 间调整">哺乳期</option>
+      </select>
+    </div>
+    <div class="crow" id="exRow">
+      <div class="label sm">🏃 每日运动量 <span class="ex-inline"><b id="exNum">2</b> 小时<span class="tag" id="exTag">适中</span></span></div>
+      <input id="exercise" type="range" min="1" max="10" step="1" value="2">
+      <div class="scale"><span>1h 偏静</span><span>5h</span><span>10h 高活跃</span></div>
+      <div class="ex-hint" id="exHint">仅「活跃 / 工作犬」按运动量调节系数；其他阶段活动量已含在系数中。</div>
+    </div>
+  </div>
+
+  <!-- 喂食方式 -->
+  <div class="card">
+    <div class="label">🍱 喂食方式 <span class="hint" id="modeHint">组合：热量各一半</span></div>
+    <div class="seg" id="mode">
+      <button data-m="kibble">🦴 全狗粮</button>
+      <button data-m="fresh">🥩 全鲜食</button>
+      <button data-m="combo" class="active">🍱 组合</button>
+    </div>
+  </div>
+
+  <!-- 结果 -->
+  <div class="card result">
+    <div class="label">🍽️ 推荐喂食量</div>
+    <div class="total">
+      <div class="kcal">每日能量需求 MER ≈ <span id="mer">0</span> kcal</div>
+      <div class="big"><span id="dailyG">0</span><span class="s"> g / 天</span></div>
+      <div class="sub" id="resultSub">每天 2 顿 · 鲜食与狗粮热量各一半</div>
+    </div>
+    <div class="meal-title">每顿合计约 <b id="perMealG">0</b> g，搭配如下：</div>
+    <div class="split">
+      <div class="item" id="itemFresh">
+        <button class="lock" id="lockFresh" data-food="fresh" type="button" aria-label="锁定鲜食"></button>
+        <div class="ic">🥩</div><div class="name">鲜食</div>
+        <div class="g"><input id="freshG" type="number" inputmode="decimal" min="0" value="0"><span class="s">g</span></div>
+        <div class="kc" id="freshKc">0 kcal</div>
+      </div>
+      <div class="item" id="itemKibble">
+        <button class="lock" id="lockKibble" data-food="kibble" type="button" aria-label="锁定狗粮"></button>
+        <div class="ic">🦴</div><div class="name">狗粮</div>
+        <div class="g"><input id="kibbleG" type="number" inputmode="decimal" min="0" value="0"><span class="s">g</span></div>
+        <div class="kc" id="kibbleKc">0 kcal</div>
+      </div>
+    </div>
+    <div class="fix-warn" id="fixWarn"></div>
+    <div class="kcal-bar" id="kcalBar">
+      🔥 <span class="vals" id="kcalVals">鲜食 130 · 狗粮 350 kcal/100g</span>
+      <span class="edit">调整 ✎</span>
+    </div>
+  </div>
+
+  <!-- 计算明细 -->
+  <details>
+    <summary>📐 计算明细</summary>
+    <div class="calc-rows">
+      <div class="row"><span>RER 静息能量 <span class="f">70 × 体重^0.75</span></span><b><span id="rer">0</span> kcal</b></div>
+      <div class="row"><span id="coefSrcLabel">生命阶段系数</span><b id="coefBase">2.0</b></div>
+      <div class="row"><span>运动量映射 <span class="f" id="exMapF">活跃档：1–10h → 2.0–5.0</span></span><b id="coefEx">—</b></div>
+      <div class="row"><span>最终系数</span><b id="coefFinal">2.0</b></div>
+      <div class="row"><span>MER 维持能量 <span class="f">RER × 系数</span></span><b><span id="merD">0</span> kcal</b></div>
+    </div>
+  </details>
+
+  <div class="note">
+    <b>说明：</b>采用兽医常用能量法（RER=70×体重^0.75，MER=RER×系数）。系数取自生命阶段表；
+    其中<b>「活跃 / 工作犬」</b>的系数按每日运动量在区间 <b>2.0–5.0</b>（1h→2.0，10h→5.0）线性取值，
+    其他阶段的活动量已包含在该阶段系数中，运动量不再叠加。鲜食与狗粮按热量分配，因鲜食热量密度低，
+    故鲜食克数通常多于狗粮。结果为日常喂养参考，幼犬、孕/哺乳、肥胖或患病犬请遵兽医指导。
+  </div>
+</div>
+
+<!-- 热量设置弹窗 -->
+<div class="overlay" id="overlay">
+  <div class="sheet" role="dialog" aria-modal="true">
+    <div class="grab"></div>
+    <h2>🔥 食物热量设置</h2>
+    <p class="lead">用于把每日能量需求（kcal）换算成克数。看不到包装标注时，下面的默认值是合理的经验估计。</p>
+
+    <div class="kcal-edit" id="fiKibble">
+      <div class="t">🦴 狗粮（干粮）</div>
+      <div class="ig"><input id="kibbleKcal" type="number" inputmode="decimal" value="350"><span class="suf">kcal/100g</span></div>
+      <div class="src">
+        <b>默认 350 ——经验中位数。</b>NIH 实测 8 种常见商业干粮为 330–400（均值约 360）；
+        各品牌（Royal Canin、Hill's、Diamond 等）公开数据多在 300–470。
+        低脂减重粮可低至 280，高脂幼犬粮可达 500+，请以你家粮袋标注为准。
+      </div>
+    </div>
+
+    <div class="kcal-edit" id="fiFresh">
+      <div class="t">🥩 鲜食（湿粮 / 自制熟食）</div>
+      <div class="ig"><input id="freshKcal" type="number" inputmode="decimal" value="130"><span class="suf">kcal/100g</span></div>
+      <div class="src">
+        <b>默认 130 ——介于罐头与自制之间。</b>商业湿粮/罐头约 118–134（Stuzzy 118、Devini 121、
+        DogCatStar 134，含水约 75%）；兽医审核的自制熟食配方约 150（MSPCA-Angell 约 151）。
+      </div>
+    </div>
+
+    <div class="actions">
+      <button class="reset" id="kcalReset">恢复默认</button>
+      <button class="done" id="kcalDone">完成</button>
+    </div>
+  </div>
+</div>
+
+<script>
+  const $ = id => document.getElementById(id);
+  const weightEl = $('weight'), stageEl = $('stage'), exEl = $('exercise'),
+        freshKcalEl = $('freshKcal'), kibbleKcalEl = $('kibbleKcal'),
+        freshGEl = $('freshG'), kibbleGEl = $('kibbleG');
+
+  const foodName = { fresh: '鲜食', kibble: '狗粮' };
+
+  // 线性锁图标
+  const svgLocked = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg>';
+  const svgUnlocked = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 7.5-2"/></svg>';
+
+  const exTags = {1:'偏静',2:'适中',3:'适中',4:'活跃',5:'活跃',6:'活跃',7:'高活跃',8:'高活跃',9:'高活跃',10:'高活跃'};
+  let mode = 'combo';      // kibble | fresh | combo
+  let lockedFood = null;   // null | 'fresh' | 'kibble'（仅组合模式有效）
+
+  const modeHints = {
+    kibble: '全部热量来自狗粮',
+    fresh:  '全部热量来自鲜食',
+    combo:  '组合：热量各一半',
+  };
+  const modeSub = {
+    kibble: '每天 2 顿 · 全部喂狗粮',
+    fresh:  '每天 2 顿 · 全部喂鲜食',
+    combo:  '每天 2 顿 · 鲜食与狗粮热量各一半',
+  };
+
+  function calc() {
+    const w  = parseFloat(weightEl.value);
+    const h  = parseInt(exEl.value);
+    const fk = parseFloat(freshKcalEl.value);
+    const kk = parseFloat(kibbleKcalEl.value);
+    const opt = stageEl.options[stageEl.selectedIndex];
+    const base = parseFloat(stageEl.value);
+    const isActive = opt.dataset.active === '1';   // 活跃/工作犬
+
+    // 运动量标签 + 阶段说明
+    $('exNum').textContent = h;
+    $('exTag').textContent = exTags[h];
+    $('stageDesc').textContent = '· ' + opt.dataset.d;
+
+    // 系数：活跃/工作犬按运动量 1–10h 线性映射到区间 2.0–5.0；
+    // 其他阶段活动量已含在表格系数里，运动量不再叠加。
+    let coef;
+    if (isActive) {
+      coef = 2.0 + (h - 1) / 9 * (5.0 - 2.0);    // h=1→2.0, h=10→5.0
+      $('coefSrcLabel').textContent = '活跃/工作犬区间';
+      $('coefBase').textContent = '2.0–5.0';
+      $('coefEx').textContent   = coef.toFixed(2) + '（' + h + 'h）';
+    } else {
+      coef = base;
+      $('coefSrcLabel').textContent = '生命阶段系数';
+      $('coefBase').textContent = base.toFixed(1);
+      $('coefEx').textContent   = '不计（已含在系数中）';
+    }
+    $('coefFinal').textContent = coef.toFixed(2);
+
+    // 运动量滑块仅对活跃/工作犬有效，其余阶段弱化提示
+    $('exRow').classList.toggle('muted', !isActive);
+
+    // 按方式决定鲜食 / 狗粮各占的热量比例
+    const useFresh  = mode === 'fresh'  || mode === 'combo';
+    const useKibble = mode === 'kibble' || mode === 'combo';
+    $('itemFresh').style.display  = useFresh  ? '' : 'none';
+    $('itemKibble').style.display = useKibble ? '' : 'none';
+    $('fiFresh').classList.toggle('dim',  !useFresh);
+    $('fiKibble').classList.toggle('dim', !useKibble);
+    $('modeHint').textContent = modeHints[mode];
+
+    // 锁定仅组合模式有效；切到单一方式时清除锁定
+    if (mode !== 'combo') lockedFood = null;
+    const lockActive = mode === 'combo' && lockedFood;
+    // 锁按钮只在组合模式显示
+    $('lockFresh').style.display  = mode === 'combo' ? '' : 'none';
+    $('lockKibble').style.display = mode === 'combo' ? '' : 'none';
+    // 单一方式下份量由 MER 唯一确定，输入框只读
+    freshGEl.readOnly  = mode !== 'combo';
+    kibbleGEl.readOnly = mode !== 'combo';
+    // 锁定态样式 + 图标
+    $('itemFresh').classList.toggle('locked',  lockedFood === 'fresh');
+    $('itemKibble').classList.toggle('locked', lockedFood === 'kibble');
+    $('lockFresh').innerHTML  = lockedFood === 'fresh'  ? svgLocked : svgUnlocked;
+    $('lockKibble').innerHTML = lockedFood === 'kibble' ? svgLocked : svgUnlocked;
+
+    if (lockActive) {
+      const other = lockedFood === 'kibble' ? 'fresh' : 'kibble';
+      $('resultSub').textContent = '每天 2 顿 · 固定' + foodName[lockedFood] + '，' + foodName[other] + '补足剩余热量';
+    } else {
+      $('resultSub').textContent = modeSub[mode];
+    }
+
+    // 结果卡底部的热量摘要（只显示当前方式用到的）
+    const parts = [];
+    if (useFresh)  parts.push('鲜食 ' + (freshKcalEl.value || '?'));
+    if (useKibble) parts.push('狗粮 ' + (kibbleKcalEl.value || '?'));
+    $('kcalVals').textContent = parts.join(' · ') + ' kcal/100g';
+
+    // 仅校验当前方式真正用到的热量值
+    const bad = isNaN(w) || w <= 0 ||
+                (useFresh  && (isNaN(fk) || fk <= 0)) ||
+                (useKibble && (isNaN(kk) || kk <= 0));
+    if (bad) {
+      ['mer','dailyG','perMealG','rer','merD'].forEach(i => $(i).textContent = '0');
+      $('freshKc').textContent = $('kibbleKc').textContent = '0 kcal';
+      return;
+    }
+
+    const rer = 70 * Math.pow(w, 0.75);      // 静息能量
+    const mer = rer * coef;                  // 维持能量（每日总热量）
+
+    const r = n => Math.round(n / 5) * 5;     // 取整到 5g，方便称量
+    const r0 = n => Math.round(n);
+
+    // 先求每顿克数，再反推每种食物的热量
+    let freshGMeal = 0, kibbleGMeal = 0;
+    const warn = $('fixWarn');
+    warn.classList.remove('show');
+
+    if (mode === 'fresh') {
+      freshGMeal = r(mer / fk * 100 / 2);
+    } else if (mode === 'kibble') {
+      kibbleGMeal = r(mer / kk * 100 / 2);
+    } else if (lockActive) {
+      // 固定一种（用输入框里的每顿克数），另一种补足剩余热量
+      const lockIsKibble = lockedFood === 'kibble';
+      const lockGMeal = parseFloat((lockIsKibble ? kibbleGEl : freshGEl).value) || 0;
+      const lockKcal  = lockIsKibble ? kk : fk;
+      const otherKcal = lockIsKibble ? fk : kk;
+      const lockEnergyDay = lockGMeal * 2 / 100 * lockKcal;            // 固定食物每日热量
+      const otherEnergyDay = mer - lockEnergyDay;                      // 剩余交给另一种
+      const otherGMeal = otherEnergyDay > 0 ? r(otherEnergyDay / otherKcal * 100 / 2) : 0;
+
+      if (lockIsKibble) { kibbleGMeal = lockGMeal; freshGMeal = otherGMeal; }
+      else              { freshGMeal = lockGMeal; kibbleGMeal = otherGMeal; }
+
+      if (lockEnergyDay >= mer) {
+        const otherName = foodName[lockIsKibble ? 'fresh' : 'kibble'];
+        warn.textContent = '⚠️ 固定的' + foodName[lockedFood] + '（每顿 ' + lockGMeal
+          + 'g）已提供约 ' + r0(lockEnergyDay) + ' kcal，达到或超过每日需求 '
+          + r0(mer) + ' kcal，' + otherName + '已无需投喂，建议调小固定份量。';
+        warn.classList.add('show');
+      }
+    } else {
+      // 组合：热量各一半
+      freshGMeal  = r((mer * 0.5) / fk * 100 / 2);
+      kibbleGMeal = r((mer * 0.5) / kk * 100 / 2);
+    }
+
+    const freshKcalMeal  = freshGMeal  / 100 * fk;
+    const kibbleKcalMeal = kibbleGMeal / 100 * kk;
+    const dailyG = (freshGMeal + kibbleGMeal) * 2;
+
+    $('rer').textContent  = r0(rer);
+    $('merD').textContent = r0(mer);
+    $('mer').textContent  = r0(mer);
+    $('dailyG').textContent   = dailyG;
+    $('perMealG').textContent = freshGMeal + kibbleGMeal;
+    // 锁定的食物保留用户输入，不回写；其余写入计算值
+    if (lockedFood !== 'fresh')  freshGEl.value  = freshGMeal;
+    if (lockedFood !== 'kibble') kibbleGEl.value = kibbleGMeal;
+    $('freshKc').textContent  = r0(freshKcalMeal) + ' kcal';
+    $('kibbleKc').textContent = r0(kibbleKcalMeal) + ' kcal';
+  }
+
+  [weightEl, stageEl, exEl, freshKcalEl, kibbleKcalEl].forEach(el => {
+    el.addEventListener('input', calc);
+    el.addEventListener('change', calc);
+  });
+  document.querySelectorAll('#mode button').forEach(b =>
+    b.addEventListener('click', () => {
+      mode = b.dataset.m;
+      document.querySelectorAll('#mode button').forEach(x => x.classList.toggle('active', x === b));
+      calc();
+    }));
+
+  // 编辑某项克数 → 自动锁定该项（组合模式），另一项补足
+  freshGEl.addEventListener('input', () => {
+    if (mode === 'combo') lockedFood = 'fresh';
+    calc();
+  });
+  kibbleGEl.addEventListener('input', () => {
+    if (mode === 'combo') lockedFood = 'kibble';
+    calc();
+  });
+  // 点锁：开/关；互斥，只能锁一个
+  $('lockFresh').addEventListener('click', () => {
+    lockedFood = lockedFood === 'fresh' ? null : 'fresh';
+    calc();
+  });
+  $('lockKibble').addEventListener('click', () => {
+    lockedFood = lockedFood === 'kibble' ? null : 'kibble';
+    calc();
+  });
+
+  // 热量设置弹窗
+  const overlay = $('overlay');
+  const openSheet  = () => overlay.classList.add('show');
+  const closeSheet = () => overlay.classList.remove('show');
+  $('kcalBar').addEventListener('click', openSheet);
+  $('kcalDone').addEventListener('click', closeSheet);
+  overlay.addEventListener('click', e => { if (e.target === overlay) closeSheet(); });
+  $('kcalReset').addEventListener('click', () => {
+    freshKcalEl.value = 130; kibbleKcalEl.value = 350; calc();
+  });
+
+  calc();
+</script>
+</body>
+</html>
